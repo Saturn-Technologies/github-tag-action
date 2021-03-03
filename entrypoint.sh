@@ -48,7 +48,7 @@ git fetch --tags
 
 # get latest tag that looks like a semver (with or without v)
 tag=$(git tag --list --merged $tag_target_branch --sort=-v:refname | grep -E "^v?[0-9]+.[0-9]+.[0-9]+$" | head -n1)
-pre_tag=$(git tag --list --merged develop --sort=-v:refname | grep -E "^v?[0-9]+.[0-9]+.[0-9]+(-(beta|alpha).[0-9]+)?$" | head -n1)
+pre_tag=$(git tag --list --merged $tag_target_branch --sort=-v:refname | grep -E "^v?[0-9]+.[0-9]+.[0-9]+(-($suffix|alpha).[0-9]+)?$" | head -n1)
 
 echo -e "Existing tag ${tag}"
 echo -e "Existing pre-tag ${pre_tag}"
