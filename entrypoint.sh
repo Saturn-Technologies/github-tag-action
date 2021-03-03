@@ -26,7 +26,7 @@ echo -e "\tSOURCE: ${source}"
 echo -e "\tDRY_RUN: ${dryrun}"
 echo -e "\tINITIAL_VERSION: ${initial_version}"
 echo -e "\tTAG_CONTEXT: ${tag_context}"
-echo -e "\tTAG_TAG_TARGET_BRANCH: ${tag_target_branch}"
+echo -e "\tTAG_TARGET_BRANCH: ${tag_target_branch}"
 echo -e "\tPRERELEASE_SUFFIX: ${suffix}"
 echo -e "\tVERBOSE: ${verbose}"
 
@@ -43,16 +43,6 @@ for b in "${branch[@]}"; do
 done
 echo "pre_release = $pre_release"
 
-# fetch tags
-#mkdir ~/.ssh/
-#
-#ssh -o 'StrictHostKeyChecking no' github.com cat /etc/ssh/ssh_host_dsa_key.pub >>~/.ssh/known_hosts
-#chmod 600 ~/.ssh/known_hosts
-#ls -las
-#cp id_rsa* ~/.ssh/
-#
-#ssh -vT git@github.com
-
 git fetch --tags
 
 
@@ -60,21 +50,19 @@ git fetch --tags
 if $pre_release
 then
   tag=$(git tag --list --merged $tag_target_branch --sort=-v:refname | grep -E "^v?[0-9]+.[0-9]+.[0-9]+$" | head -n1)
-  pre_tag=$(git tag --list --merged $tag_target_branch --sort=-v:refname | grep -E "^v?[0-9]+.[0-9]+.[0-9]+(-$suffix)$" | head -n1)
+  pre_tag=$(git tag --list --merged $tag_target_branch --sort=-v:refname | grep -E "^v?[0-9]+.[0-9]+.[0-9]+(-($suffix|alpha))$" | head -n1)
+  if [ -z "$pre_tag" ]
+  then
+    pre_tag=$(git tag --list --merged HEAD --sort=-v:refname | grep -E "^v?[0-9]+.[0-9]+.[0-9]+(-($suffix|alpha))$" | head -n1)
+  fi
 else
-  tag=$(git tag --list --merged $tag_target_branch --sort=-v:refname | grep -E "^v?[0-9]+.[0-9]+.[0-9]+(-($suffix|alpha).[0-9]+)?$" | head -n1)
+  tag=$(git tag --list --merged $tag_target_branch --sort=-v:refname | grep -E "^v?[0-9]+.[0-9]+.[0-9]+$" | head -n1)
+  if [ -z "$tag"]
+  then
+    tag=$(git tag --list --merged HEAD --sort=-v:refname | grep -E "^v?[0-9]+.[0-9]+.[0-9]+$" | head -n1)
+  fi
   pre_tag=""
 fi
-
-
-
-# get latest tag that looks like a semver (with or without v)
-#tag=$(git tag --list --merged $tag_target_branch --sort=-v:refname | grep -E "^v?[0-9]+.[0-9]+.[0-9]+$" | head -n1)
-#pre_tag_branch=$(if $pre_release; then "HEAD" else $tag_target_branch)
-#pre_tag=$(git tag --list --merged  --sort=-v:refname | grep -E "^v?[0-9]+.[0-9]+.[0-9]+(-($suffix|alpha).[0-9]+)?$" | head -n1)
-
-echo -e "Existing tag ${tag}"
-echo -e "Existing pre-tag ${pre_tag}"
 
 if [ -z "$tag" ]
 then
@@ -85,10 +73,10 @@ then
       tag="$initial_version"
       pre_tag="$initial_version"
     else
-      if $pŕe_release
+      if $pre_release
       then
         # If only pre-tag found use it if this is a pre-release
-        tag=pre_tag
+        tag=$pre_tag
       else
         # If only pre-tag found remove pre-release suffix
         tag=$(echo $pre_tag | sed -e "s/-.*//")
@@ -98,6 +86,10 @@ then
 else
     log=$(git log $tag..HEAD --pretty='%B')
 fi
+
+echo -e "Existing tag ${tag}"
+echo -e "Existing pre-tag ${pre_tag}"
+
 
 # get current commit hash for tag
 tag_commit=$(git rev-list -n 1 $tag)
@@ -127,7 +119,9 @@ case "$log" in
         if [ "$default_semvar_bump" == "none" ]; then
             echo "Default bump was set to none. Skipping..."; exit 0
         else
-            new=$(semver -i "${default_semvar_bump}" $tag); part=$default_semvar_bump
+            base_tag=$(echo $tag | sed -e "s/-.*//")
+            echo "Hey -------------------" base_tag
+            new=$(semver -i "${default_semvar_bump}" $base_tag); part=$default_semvar_bump
         fi
         ;;
 esac
@@ -136,7 +130,9 @@ if $pre_release
 then
     # Already a prerelease available, bump it
     if [[ "$pre_tag" == *"$new"* ]]; then
-        new=$(semver -i prerelease $pre_tag --preid $suffix); part="pre-$part"
+        echo "Bumping ${default_semvar_bump}"
+        new_pre_tag=$(echo $pre_tag | sed -e "s/-.*//")
+        new=$(semver -i "${default_semvar_bump}" $new_pre_tag --preid $suffix)-$suffix; part="$part"
     else
         new="$new-$suffix"; part="pre-$part"
     fi
@@ -170,19 +166,19 @@ fi
 echo ::set-output name=new_tag::$new
 echo ::set-output name=part::$part
 
-# use dry run to determine the next tag
+#use dry run to determine the next tag
 if $dryrun
 then
     echo ::set-output name=tag::$tag
     exit 0
-fi 
+fi
 
 echo ::set-output name=tag::$new
 
-# create local git tag
+## create local git tag
 git tag $new
 
-# push new tag ref to github
+## push new tag ref to github
 dt=$(date '+%Y-%m-%dT%H:%M:%SZ')
 full_name=$GITHUB_REPOSITORY
 git_refs_url=$(jq .repository.git_refs_url $GITHUB_EVENT_PATH | tr -d '"' | sed 's/{\/sha}//g')
