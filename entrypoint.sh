@@ -44,25 +44,55 @@ done
 echo "pre_release = $pre_release"
 
 # fetch tags
+#mkdir ~/.ssh/
+#
+#ssh -o 'StrictHostKeyChecking no' github.com cat /etc/ssh/ssh_host_dsa_key.pub >>~/.ssh/known_hosts
+#chmod 600 ~/.ssh/known_hosts
+#ls -las
+#cp id_rsa* ~/.ssh/
+#
+#ssh -vT git@github.com
+
 git fetch --tags
 
+
+# If release look for pre-tag on target branch
+if $pre_release
+then
+  tag=$(git tag --list --merged $tag_target_branch --sort=-v:refname | grep -E "^v?[0-9]+.[0-9]+.[0-9]+$" | head -n1)
+  pre_tag=$(git tag --list --merged $tag_target_branch --sort=-v:refname | grep -E "^v?[0-9]+.[0-9]+.[0-9]+(-$suffix)$" | head -n1)
+else
+  tag=$(git tag --list --merged $tag_target_branch --sort=-v:refname | grep -E "^v?[0-9]+.[0-9]+.[0-9]+(-($suffix|alpha).[0-9]+)?$" | head -n1)
+  pre_tag=""
+fi
+
+
+
 # get latest tag that looks like a semver (with or without v)
-tag=$(git tag --list --merged $tag_target_branch --sort=-v:refname | grep -E "^v?[0-9]+.[0-9]+.[0-9]+$" | head -n1)
-pre_tag=$(git tag --list --merged $tag_target_branch --sort=-v:refname | grep -E "^v?[0-9]+.[0-9]+.[0-9]+(-($suffix|alpha).[0-9]+)?$" | head -n1)
+#tag=$(git tag --list --merged $tag_target_branch --sort=-v:refname | grep -E "^v?[0-9]+.[0-9]+.[0-9]+$" | head -n1)
+#pre_tag_branch=$(if $pre_release; then "HEAD" else $tag_target_branch)
+#pre_tag=$(git tag --list --merged  --sort=-v:refname | grep -E "^v?[0-9]+.[0-9]+.[0-9]+(-($suffix|alpha).[0-9]+)?$" | head -n1)
 
 echo -e "Existing tag ${tag}"
 echo -e "Existing pre-tag ${pre_tag}"
 
-# if there are none, start tags at INITIAL_VERSION which defaults to 0.0.0
 if [ -z "$tag" ]
 then
     log=$(git log --pretty='%B')
     if [ -z "$pre_tag" ]
     then
+      # If not tag or pre-tag found use INITIAL_VERSION
       tag="$initial_version"
       pre_tag="$initial_version"
     else
-      tag=pre_tag
+      if $pŕe_release
+      then
+        # If only pre-tag found use it if this is a pre-release
+        tag=pre_tag
+      else
+        # If only pre-tag found remove pre-release suffix
+        tag=$(echo $pre_tag | sed -e "s/-.*//")
+      fi
     fi
 
 else
@@ -91,14 +121,14 @@ case "$log" in
     *#major* ) new=$(semver -i major $tag); part="major";;
     *#minor* ) new=$(semver -i minor $tag); part="minor";;
     *#patch* ) new=$(semver -i patch $tag); part="patch";;
-    *#none* ) 
+    *#none* )
         echo "Default bump was set to none. Skipping..."; exit 0;;
-    * ) 
+    * )
         if [ "$default_semvar_bump" == "none" ]; then
-            echo "Default bump was set to none. Skipping..."; exit 0 
-        else 
-            new=$(semver -i "${default_semvar_bump}" $tag); part=$default_semvar_bump 
-        fi 
+            echo "Default bump was set to none. Skipping..."; exit 0
+        else
+            new=$(semver -i "${default_semvar_bump}" $tag); part=$default_semvar_bump
+        fi
         ;;
 esac
 
@@ -108,7 +138,7 @@ then
     if [[ "$pre_tag" == *"$new"* ]]; then
         new=$(semver -i prerelease $pre_tag --preid $suffix); part="pre-$part"
     else
-        new="$new-$suffix.1"; part="pre-$part"
+        new="$new-$suffix"; part="pre-$part"
     fi
 fi
 
