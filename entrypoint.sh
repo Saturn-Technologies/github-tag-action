@@ -57,7 +57,12 @@ echo -e "Existing pre-tag ${pre_tag}"
 if [ -z "$tag" ]
 then
     log=$(git log --pretty='%B')
-    tag="$initial_version"
+    if [ -z "$pre_tag" ]
+    then
+      tag="$initial_version"
+    else
+      tag=pre_tag
+    fi
     pre_tag="$initial_version"
 else
     log=$(git log $tag..HEAD --pretty='%B')
