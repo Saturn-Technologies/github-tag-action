@@ -60,10 +60,11 @@ then
     if [ -z "$pre_tag" ]
     then
       tag="$initial_version"
+      pre_tag="$initial_version"
     else
       tag=pre_tag
     fi
-    pre_tag="$initial_version"
+
 else
     log=$(git log $tag..HEAD --pretty='%B')
 fi
