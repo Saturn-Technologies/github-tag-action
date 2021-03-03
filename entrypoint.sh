@@ -120,22 +120,17 @@ case "$log" in
             echo "Default bump was set to none. Skipping..."; exit 0
         else
             base_tag=$(echo $tag | sed -e "s/-.*//")
-            echo "Hey -------------------" base_tag
             new=$(semver -i "${default_semvar_bump}" $base_tag); part=$default_semvar_bump
         fi
         ;;
 esac
 
+echo $new $pre_tag
 if $pre_release
 then
     # Already a prerelease available, bump it
-    if [[ "$pre_tag" == *"$new"* ]]; then
-        echo "Bumping ${default_semvar_bump}"
-        new_pre_tag=$(echo $pre_tag | sed -e "s/-.*//")
-        new=$(semver -i "${default_semvar_bump}" $new_pre_tag --preid $suffix)-$suffix; part="$part"
-    else
-        new="$new-$suffix"; part="pre-$part"
-    fi
+    new_pre_tag=$(echo $pre_tag | sed -e "s/-.*//")
+    new=$(semver -i "${default_semvar_bump}" $new_pre_tag --preid $suffix)-$suffix; part="$part"
 fi
 
 echo $part
